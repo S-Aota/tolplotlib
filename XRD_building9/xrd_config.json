@@ -1,0 +1,8 @@
+{
+    "ReciprocalSpaseMap":{
+        "cmap":"jet",
+        "cmin":2,
+        "cmax":8,
+        "levels":100
+    }
+}

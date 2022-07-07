@@ -1,12 +1,12 @@
 from common.measurement_data import measurement_data
 import xml.etree.ElementTree as ET
 import numpy as np
+import matplotlib
+import json
 
-k_nolm = 1 / 0.1542e-9 / 1e10 * 1e4 # (/aa)
-
-class Omega2Theta(measurement_data):
+class Omega2Theta_data(measurement_data):
     def __init__(self, path):
-        super().__init__(path, "omega2theta")
+        super().__init__(path)
         assert self.extension == "xrdxml"
 
         tree = ET.parse(path)
@@ -18,8 +18,28 @@ class Omega2Theta(measurement_data):
         self.count = np.array(list(map(int, datapoint[8].text.split())))
         self.theta2 = np.linspace(xs, xe, len(self.count))
 
-    def plot_args(self, ex, ey, **kwargs):
-        return super().plot_args(self.theta2, self.count, ex, ey, **kwargs)
+class Omega2Theta(object):
+    def __init__(self, *datas: Omega2Theta_data):
+        self.datas = datas
+        self.settings = json.load(open("xrd_config.json"))["Omega2Theta"]
+
+    def plot_data(self, ax, axes_option,**kwargs):
+        axes_option = self.settings["axes_option"].update(axes_option)
+        plot_options = self.settings["plot_option"].update(kwargs)
+        ax.set_xlabel(axes_option["xlabels"][axes_option["xunit"]])
+        ax.set_ylabel(axes_option["ylabels"][axes_option["yunit"]])
+
+        if axes_option["xunit"] == "2theta":
+            fx =  lambda data: (data.theta2, data.count)
+        elif axes_option["xunit"] == "omega":
+            fx = lambda data: (data.theta2 / 2., data.count)
+        else:
+            raise ValueError("'axmode' must be 'auto', 'x', 'y,' or 'xy'")
+
+        for i, data in enumerate(self.datas):
+            plot_options = self.settings["plot_option"]
+            ax.plot(*fx(data), **plot_options)
+
 
 class ReciprocalSpaceMap(measurement_data):
     def __init__(self, path):
@@ -40,6 +60,13 @@ class ReciprocalSpaceMap(measurement_data):
         theta2 = np.stack(theta2, axis=0) / 180 * np.pi 
         omega = np.stack(omega, axis=0) / 180 * np.pi 
         self.phi = np.pi / 2 - theta2 / 2 + omega
+        
         self.r = 2 * np.sin(theta2/2) * k_nolm
         self.x = self.r * np.cos(self.phi)
         self.y = self.r * np.sin(self.phi)
+
+    def plot_args(self, cmin, cmax, **kwargs):
+        default_kwargs = json.load(open("xrd_config.json"))["ReciprocalSpaseMap"]
+        default_kwargs.update(kwargs)
+        kwargs['norm'] = matplotlib.colors.Normalize(vmin=cmin, vmax=cmax)
+        return [self.x, self.y, np.log(self.counts)], default_kwargs
